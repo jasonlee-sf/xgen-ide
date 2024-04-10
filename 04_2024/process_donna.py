@@ -60,9 +60,9 @@ if __name__ == '__main__':
             input_data.append(
                 (transcript, questions)
             )
-    import ipdb; ipdb.set_trace()
-    queue_name = "gen_insights_queue_0405_01"
-    task_name = "gen_insights_task_0405_01"
+    #import ipdb; ipdb.set_trace()
+    queue_name = "gen_insights_queue_0409_02"
+    task_name = "gen_insights_task_0409_02"
     upload(input_data, queue_name, task_name)
     print (1)
 
