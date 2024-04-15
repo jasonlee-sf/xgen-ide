@@ -35,57 +35,50 @@ def upload(input_data, queue_name, task_name):
             })
 
         id = id.split("_")
-        id = "_".join(id[2:])
+        id = "_".join(id[1:])
         # "#task_name": f"{id}",
         example = {
             "inputs": inputs,
             "outputs": outputs,
             "metadata": {
-                "input_header": "",
-                "output_headder": "questions",
+                "input_header": "Transcript",
+                "output_headder": "Questions",
                 "task_name": f"{task_name}",
                 "desc": f"{guidelines}",
-                "queue_name": f"{queue_name}"
-                "id": f"{id}"
+                "queue_name": f"{queue_name}",
+                "id": f"{id}",
             },
         }
         examples.append(example)
-    import ipdb; ipdb.set_trace()
     data = {'data': json.dumps(examples, separators=(',', ':'))}
     res = requests.post(url, json=data)
-    print (res)
+    print (f"requests.post result: {res}")
     return res
 
 def main(args):
-    calltype, length = [args.calltype], [args.length]
-    if args.calltype is None:
-        calltype = "voice video".split()
-        length = "short medium long".split()
-    for calltype_ in calltype:
-        for length_ in length:
-            input_data = []
-            with open(f"/Users/jason.lee2/scr/xgen-ide/04_2024/10_data2/{calltype_}-{length_}.csv") as f:
-                reader = csv.reader(f)
-                for idx, row in enumerate(reader):
-                    if args.maxlength == idx:
-                        break
-                    id = row[0]
-                    transcript = row[1]
-                    questions = row[2::2]
-                    answers = row[3::2]
-                    assert len(questions) == len(answers)
-                    input_data.append(
-                        (id, transcript, questions, answers)
-                    )
-            queue_name = f"gi_queue_0412_01"
-            task_name = "gi_task_0412_01"
-            upload(input_data, queue_name, task_name)
-    print (1)
+    queue_name = f"gi_main_queue"
+    task_name = "gi_task"
+    with open(f"/Users/jason.lee2/scr/xgen-ide/04_2024/12_data/result.csv") as f:
+        reader = csv.reader(f)
+        input_data = []
+        for idx, row in enumerate(reader):
+            if idx % args.upload_every == 0:
+                print (idx)
+                upload(input_data, queue_name, task_name)
+                input_data = []
+            id = row[0]
+            transcript = row[1]
+            questions = row[2::2]
+            answers = row[3::2]
+            assert len(questions) == len(answers)
+            input_data.append(
+                (id, transcript, questions, answers)
+            )
+    if len(input_data) > 0:
+        upload(input_data, queue_name, task_name)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--calltype", type=str, default=None)
-    parser.add_argument("--length", type=str, default=None)
-    parser.add_argument("--maxlength", type=int, default=-1)
+    parser.add_argument("--upload_every", type=int, default=-1)
     args = parser.parse_args()
     main(args)
