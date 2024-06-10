@@ -1,42 +1,80 @@
+from pprint import pprint as pp
 import requests
 import json
+import csv
+import argparse
 
-task_name="test_task"
+guidelines = ""
+url = "https://xgenide.salesforceresearch.ai/api/upload"
 
-def upload():
-  url = 'https://xgenide.salesforceresearch.ai/api/upload'
-  dataToBeUploaded = [
-    {
-      "inputs": [
-        {
-          "label": "input 1",
-          "type": "text",
-          "content": "Topic: New co-worker at the office\nMichael: Hi. Sam. \nSam: Michael. Good to meet you!\nMichael: Did you just arrive here?\nSam: Yeah, We arrived last week.\nMichael: How do you like it?\nSam: It's exciting! It's much busier than the last city we lived in. I was working in Seattle for the last 3 years.\nMichael: It really is very busy. I moved here from Tokyo 5 years ago and I still have trouble sometimes. Did you move here with your wife?\nSam: Actually, I'm not married. I moved here with my dog, Charles. We are very close.\nMichael: Oh. I see.\nSam: What about you?\nMichael: Yes, I am married and I have two children.\nSam: How old are they?\nMichael: 6 and 8 years old\nSam: Oh, great. That age is a lot of fun.\nMichael: But it is exhausting.\nSam: I understand. My brother has kids the same age. Every time we visit he falls asleep on the sofa.\nMichael: Must be nice. We don't have time to sleep, we have to drink a lot of coffee.\n"
-        },
-        {
-          "label": "input 2",
-          "type": "text",
-          "content": "exhausting: something makes you very tired.\nEx: Working on a farm is exhausting, you have to exercise all day.\nEx: Speaking English all day can be exhausting.\nfall+ asleep: the beginning of sleep.\nEx: He was in bed and falling asleep when the phone rang.  \nvery close: to have a close relationship with a friend or family member.\nEx: You can be very close to your sister or your classmates.\nhave+ trouble: an informal way to speak about having problems.\nEx: I have trouble with my knee sometimes. She has trouble hearing because she is very old."
+def upload(input_data, queue_name, task_name):
+    examples = []
+    for id, transcript, questions, answers in input_data:
+        inputs = [{
+            "label": "",
+            "type": "text",
+            "content": f"{transcript}"
+        }]
+        outputs = []
+        q_idx = 1
+        for question, answer in zip(questions, answers):
+            outputs.append({
+                "label": f"{q_idx}. {question}",
+                "type": "text",
+                "content": f"{answer}"
+            })
+            q_idx += 1
+
+        id = id.split("_")
+        id = "_".join(id[1:])
+        # "#task_name": f"{id}",
+        example = {
+            "inputs": inputs,
+            "outputs": outputs,
+            "metadata": {
+                "input_header": "Transcript",
+                "output_headder": "Questions",
+                "task_name": f"{task_name}",
+                "desc": f"{guidelines}",
+                "queue_name": f"{queue_name}",
+                "id": f"{id}",
+            },
         }
-      ],
-      "metadata": {
-        "task_name": task_name,
-        "desc": "upload test",
-        "queue_name": "upload test"
-      },
-      "outputs": [
-        {
-          "label": "output 1",
-          "type": "text",
-          "content": "Topic: Output for a conversation with highlighted text\nPERSON 1: This color for PERSON 1 should be different than for PERSON 2\nPERSON 2: Each selected highlighted word should have a different color (up to 10 words)\nPERSON 3: This persons name was not passed to the config\nPERSON 1: highlighted words are also case sensitive, PERSON 2 is highlighted but person 2 is not."
-        }
-      ]
-    },
-  ]
-  data = {'data': json.dumps(dataToBeUploaded,separators=(',', ':'))}
-  res = requests.post(url,json=data)
-  return res
+        examples.append(example)
+    data = {'data': json.dumps(examples, separators=(',', ':'))}
+    res = requests.post(url, json=data)
+    #print (f"requests.post result: {res}")
+    return res
 
-if __name__ == '__main__':
-  upload()
+def main(args):
+    queue_name = f"gi_0610_long_queue"
+    task_name = "gi_task"
+    with open(args.csv_path) as f:
+        reader = csv.reader(f)
+        input_data = []
+        for idx, row in enumerate(reader):
+            # if idx < 2000:
+            #     continue
+            if idx == 2000:
+                break
+            if idx % args.upload_every == 0:
+                print (idx)
+                upload(input_data, queue_name, task_name)
+                input_data = []
+            id = row[0]
+            transcript = row[1]
+            questions = row[2::2]
+            answers = row[3::2]
+            assert len(questions) == len(answers)
+            input_data.append(
+                (id, transcript, questions, answers)
+            )
+    if len(input_data) > 0:
+        upload(input_data, queue_name, task_name)
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--csv_path", type=str, default="/Users/jason.lee2/scr/xgen-ide/05_2024/13_data/gi_result.csv")
+    parser.add_argument("--upload_every", type=int, default=20)
+    args = parser.parse_args()
+    main(args)
